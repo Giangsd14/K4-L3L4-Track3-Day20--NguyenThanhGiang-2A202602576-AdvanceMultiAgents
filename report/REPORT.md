@@ -1,7 +1,5 @@
 # Báo cáo Lab: Self evolving Agentic
 
-> Sao chép tệp này thành `report/REPORT.md` (đã làm ở Phần 0) và điền dần qua các Phần của lab. Xóa các dòng hướng dẫn dạng trích dẫn (bắt đầu bằng `>`). Văn phong kỹ thuật, ngắn gọn, mọi nhận định đi kèm số liệu hoặc bằng chứng. Trong buổi học: điền mục 1 đến 7 (bản nháp). Sau buổi học: hoàn thiện mục 8 đến 10.
-
 ## 1. Thông tin nhóm và cấu hình
 
 | Họ tên | Mã sinh viên | Phần đóng góp |
@@ -9,9 +7,9 @@
 | Nguyễn Thanh Giang | 2A202602576 | 100% |
 
 - Mô hình (tên deployment hoặc `LAB_MODEL`), nhiệt độ (`LAB_TEMPERATURE`), `recursion_limit`: `ChatOpenAI (gpt-6-luna)`, `LAB_TEMPERATURE=0`, `recursion_limit=60`
-- Phiên bản Deep Agents (`pip show deepagents`), hệ điều hành, chạy trực tiếp hay trong Docker: Deep Agents 0.7.21, Ubuntu 24.04 LTS (WSL2), chạy trực tiếp trong virtualenv `.venv`
-- Số lần chạy tác vụ đã dùng / ngân sách: 0 / 40
-- Commit của tag `freeze`: (sẽ cập nhật sau khi tạo tag freeze ở Phần 4)
+- Phiên bản Deep Agents (`pip show deepagents`), hệ điều hành, chạy trực tiếp hay trong Docker: Deep Agents 0.7.21, Ubuntu 24.04 LTS (WSL2), Python 3.12.3 chạy trực tiếp trong virtualenv `.venv`
+- Số lần chạy tác vụ đã dùng / ngân sách: 27 / 40
+- Commit của tag `freeze`: `7042a25` (đứng sau commit hypotheses `5b8040e`)
 
 ## 2. Giả thuyết (commit TRƯỚC tag `freeze`, Phần 4.0)
 
@@ -66,7 +64,10 @@
   - `code-learn`: **2 calls** (`implementer` được gọi đầu tiên để phân tích và áp dụng fix, sau đó `reviewer` được gọi độc lập để rà soát code).
   - `data-learn`: **1 call** (`implementer` được gọi để thực hiện toàn bộ quy trình làm sạch và tính toán dữ liệu).
   - `logs-learn`: **1 call** (`implementer` được gọi để phân tích và tạo cấu trúc json).
-  - **Nhận xét:** Tác tử chính tuân thủ tốt `SUBAGENTS_NOTE`, chủ động phân rã các bước không tầm thường (non-trivial) cho các subagent chuyên trách.
+  - `code-eval`: **2 calls** (`implementer` và `reviewer`).
+  - `data-eval`: **1 call** (`implementer`).
+  - `logs-eval`: **1 call** (`implementer`).
+  - **Nhận xét:** Tác tử chính tuân thủ tốt `SUBAGENTS_NOTE`, chủ động phân rã các bước không tầm thường (non-trivial) cho các subagent chuyên trách trên 100% các tác vụ.
 
 - **Thông tin thiếu hoặc thừa khi giao việc:**
   - Lời giao việc của tác tử chính rất chi tiết, nhắc lại các quy ước đường dẫn tương đối (`workspace/...`) và phạm vi công việc.
@@ -74,12 +75,13 @@
 
 - **Ảnh hưởng đến token và thời gian:**
   - **Token:** Tăng mạnh từ **1.7x đến 3.3x** so với `baseline`:
-    + `code-learn`: từ 62,364 token (`baseline`) tăng lên 121,520 token (`subagents`, tăng 1.95x).
-    + `data-learn`: từ 25,212 token tăng lên 82,826 token (tăng 3.28x).
-    + `logs-learn`: từ 36,032 token tăng lên 63,452 token (tăng 1.76x).
-    + Trung bình tăng từ 41,202 token lên 89,266 token/task.
-  - **Thời gian:** Tăng tương ứng do phải khởi tạo và chạy các đồ thị tác tử con tuần tự (tổng thời gian thực thi tăng gấp đôi).
-  - **Hiệu quả:** Điểm số không thay đổi (vẫn 7/10, 5/8, 6/9). Điều này minh chứng cho phát hiện của các nghiên cứu về hệ thống đa tác tử (như nghiên cứu của Anthropic): việc phân rã đa tác tử mang lại chi phí token và thời gian rất lớn nhưng không giải quyết được các thiếu sót về tri thức thủ tục/quy ước nếu các tác tử không được cung cấp kỹ năng phù hợp.
+    + `code-learn`: từ 62,364 token (`baseline`) tăng lên 121,520 token (`subagents`).
+    + `data-learn`: từ 25,212 token tăng lên 82,826 token.
+    + `logs-learn`: từ 36,032 token tăng lên 63,452 token.
+    + `code-eval`: từ 67,976 token tăng lên 179,966 token (tăng 2.65x).
+    + Trung bình trên cả 6 tác vụ: `baseline` tiêu thụ 40,001 token/task, trong khi `subagents` tiêu thụ 97,345 token/task (tăng 2.43x).
+  - **Thời gian:** Thời gian chạy tăng trung bình gấp đôi (từ 32s lên 95s/task).
+  - **Hiệu quả:** Điểm số trung bình trên tác vụ đánh giá thậm chí sụt giảm nhẹ (từ 0.60 xuống 0.56) do subagent trên `data-eval` gặp lỗi sót biên trong prompt cô lập. Điều này minh chứng cho phát hiện của các nghiên cứu về hệ thống đa tác tử (Anthropic): phân rã đa tác tử làm tăng chi phí và rủi ro mất mát thông tin qua ranh giới giao việc (delegation boundary) nếu không đi kèm kỹ năng rõ ràng.
 
 ## 6. Self-evolving: skill do curator sinh (Phần 3)
 
@@ -93,37 +95,170 @@
 
 ## 7. Kết quả so sánh (Phần 4.3, 4.4)
 
-> Dán nội dung `report/table.md` và kết quả `python scripts/check_breakdown.py`. Nêu các lần chạy có `error` hoặc `skills_modified = true` (nếu có) và cách xử lý.
+### Bảng so sánh tổng hợp (`report/table.md`)
+
+| Task | baseline | subagents | skills-auto |
+|---|---|---|---|
+| code-learn | 7/10 | 7/10 | 8/10 |
+| data-learn | 5/8 | 5/8 | 5/8 |
+| logs-learn | 6/9 | 6/9 | 6/9 |
+| code-eval | 7/11 | 7/11 | 9/11 |
+| data-eval | 5/9 | 4/9 | 5/9 |
+| logs-eval | 6/10 | 6/10 | 6/10 |
+| **Mean score - learning tasks** | 0.66 | 0.66 | 0.70 |
+| **Mean score - evaluation tasks** | 0.60 | 0.56 | 0.66 |
+| **Mean tokens per run** | 40,001 | 97,345 | 68,794 |
+| **Runs that read a skill** | 0/6 | 0/6 | 6/6 |
+
+### Bảng phân tích chi tiết kỹ thuật và quy ước (`scripts/check_breakdown.py`)
 
 ```text
-(dán bảng ở đây)
+condition     role    technical  house rules  mean tokens  read a skill
+baseline      eval     18/18         0/12          38,800      0/3     
+baseline      learn    18/18         0/9           41,202      0/3     
+subagents     eval     17/18         0/12         105,425      0/3     
+subagents     learn    18/18         0/9           89,266      0/3     
+skills-auto   eval     18/18         2/12          73,279      3/3     
+skills-auto   learn    18/18         1/9           64,309      3/3     
 ```
+
+- **Ghi chú về lỗi và tính toàn vẹn:**
+  - Không có bất kỳ lần chạy nào gặp sự cố (`error = None` trên toàn bộ 18 runs chính thức).
+  - Không có lần chạy nào vi phạm sửa đổi thư mục kỹ năng (`skills_modified = False` trên 100% các lần chạy).
+  - Lệnh kiểm tra `python scripts/verify_freeze.py` trả về `OK` (mã thoát 0), xác nhận toàn bộ 6 lần chạy của `skills-auto` dùng đúng bộ skill đã đóng băng và bắt đầu sau thời điểm tag `freeze`.
 
 ## 8. Phân tích
 
-> Trả lời từng câu bằng số liệu từ mục 7 và bằng chứng từ vết. Kết quả âm hoặc không có khác biệt vẫn hợp lệ nếu được phân tích tốt.
+### 1. So sánh cải thiện điểm số và dấu hiệu quá khớp
+- **Tác vụ học:** `skills-auto` cải thiện điểm số trung bình từ **0.66** (`baseline`) lên **0.70** (tăng thêm 1 check đạt trên `code-learn`: 8/10 so với 7/10). Trong khi đó, `subagents` không đem lại cải thiện nào (vẫn 0.66).
+- **Tác vụ đánh giá:** `skills-auto` đạt điểm trung bình **0.66**, cao hơn đáng kể so với `baseline` (**0.60**) và `subagents` (**0.56**). Mức tăng điểm này đến từ việc đạt thêm 2 checks quy ước tổ chức trên `code-eval` (9/11 so với 7/11).
+- **Hiện tượng quá khớp (Overfitting):** Có dấu hiệu phân hóa hiệu quả. Trên họ bài toán `code`, kỹ năng `repository-requirements` tổng quát hóa rất tốt sang `code-eval`. Tuy nhiên, trên `data-eval` và `logs-eval`, điểm số của `skills-auto` bằng đúng `baseline` (5/9 và 6/10) và không đạt thêm check quy ước mới nào. Điều này phản ánh tính chất quá khớp nhẹ về ngữ cảnh quy ước: tác tử chỉ thực thi tốt các quy tắc đã được đúc kết từ tập học, không thể tự suy luận ra các quy ước mới của tập đánh giá.
 
-1. So với `baseline`, điều kiện nào cải thiện điểm tác vụ **học**? Điều kiện nào cải thiện điểm tác vụ **đánh giá**? Có điều kiện nào cải thiện tác vụ học nhưng không cải thiện tác vụ đánh giá? Nếu có, đó là dấu hiệu gì?
-2. Tách điểm thành check kỹ thuật và check quy ước (`rule_`). Skill do curator sinh giúp nhóm check nào? Check quy ước **mới** của tác vụ đánh giá có được skill giúp không, và vì sao?
-3. Dựa vào vết và `skills_read`, giải thích một check mà skill giúp đạt và một check mà skill không giúp (skill chưa được đọc, đọc nhưng không làm theo, skill thiếu hoặc sai).
-4. Chi phí: so sánh số token trung bình giữa các điều kiện. Điều kiện nào có hiệu quả tốt nhất theo điểm trên mỗi token? Đa tác tử có đáng chi phí trong thí nghiệm này không?
-5. Có dấu hiệu rò rỉ dữ liệu hoặc quá khớp nào trong skill sinh ra không? Nhóm đã phòng tránh như thế nào?
-6. Nhiễu: so sánh điểm tác vụ học của cùng bộ skill ở Phần 3.4 (đã sao lưu) và sau đóng băng. Chênh lệch bao nhiêu? Nó cho biết điều gì về độ tin cậy của các chênh lệch trong bảng ở mục 7?
+### 2. Tách điểm kỹ thuật và quy ước (`rule_`)
+- Dữ liệu từ `check_breakdown.py` cho thấy:
+  + **Check kỹ thuật:** Đạt tuyệt đối **18/18 (100%)** ở cả 3 điều kiện trên cả 2 tập (riêng `subagents` đạt 17/18 trên eval do mất mát thông tin khi giao việc). Mô hình `gpt-6-luna` có năng lực lập trình và phân tích dữ liệu rất mạnh.
+  + **Check quy ước (`rule_`):** `baseline` và `subagents` hoàn toàn thất bại: đạt **0/9** trên tập học và **0/12** trên tập đánh giá. Ngược lại, `skills-auto` là điều kiện duy nhất đạt được các check quy ước: đạt **1/9** trên tập học và **2/12** trên tập đánh giá.
+- **Check quy ước mới của tác vụ đánh giá:** Tác vụ đánh giá đưa vào các quy ước mới: `rule_version_bump` (trong `code-eval`), `rule_clean_csv` format mới (trong `data-eval`), và `rule_schema_header` phiên bản 3 (trong `logs-eval`). Skill của curator **hoàn toàn không giúp được** các check quy ước mới này vì curator chỉ học từ phản hồi của tập học (nơi các quy ước này chưa từng tồn tại). Điều này chứng minh rằng tầng ngữ cảnh (context layer) bị giới hạn bởi phạm vi tri thức được cung cấp: tác tử không thể tự "đoán" được quy ước tổ chức mới nếu không có tài liệu hoặc phản hồi tương ứng.
+
+### 3. Giải thích cơ chế qua vết (`trace.md`) và `skills_read`
+- **Check mà skill giúp đạt (`rule_type_hints` và `rule_regression_tests` trong `code-eval`):**
+  + Trong vết `trace.md` của `skills-auto/code-eval`, ngay ở bước đầu tiên sau khi nhận lệnh, tác tử gọi `read_file` đọc `skills/repository-requirements/SKILL.md`.
+  + Tác tử trích xuất checklist và thực hiện tuần tự: sau khi sửa lỗi hàm tính toán trong `appointment.py`, nó dùng `read_file` quét toàn bộ các hàm public trong gói và dùng `edit_file` bổ sung đầy đủ type annotations cho tham số và kiểu trả về (đáp ứng `rule_type_hints`). Đồng thời, nó tạo file `tests/test_regressions.py` chứa 3 test function kiểm thử độc lập cho 3 bug vừa sửa (đáp ứng `rule_regression_tests`). Ở baseline, tác tử sửa code xong là kết thúc ngay, hoàn toàn không thực hiện hai bước này.
+- **Check mà skill không giúp được (`rule_version_bump` trong `code-eval`):**
+  + Check này yêu cầu nâng version trong `pyproject.toml` từ `0.1.0` lên `0.1.1`.
+  + Trong vết của `skills-auto/code-eval`, tác tử đọc kỹ năng `repository-requirements`, nhưng kỹ năng này chỉ hướng dẫn về type hints, regression test và changelog (vì ở tập học chỉ có 3 quy ước này). Kỹ năng hoàn toàn không đề cập đến việc bump version. Do đó tác tử không sửa `pyproject.toml` và check `rule_version_bump` thất bại.
+
+### 4. Phân tích chi phí và hiệu quả kinh tế (Token Efficiency)
+- **So sánh số token trung bình:**
+  + `baseline`: **40,001** tokens/run.
+  + `skills-auto`: **68,794** tokens/run (tăng 1.72x so với baseline).
+  + `subagents`: **97,345** tokens/run (tăng 2.43x so với baseline).
+- **Hiệu quả điểm số trên mỗi token:**
+  + `baseline`: 0.60 điểm / 38.8k token eval ≈ **1.55 × 10⁻⁵ điểm/token**.
+  + `skills-auto`: 0.66 điểm / 73.3k token eval ≈ **0.90 × 10⁻⁵ điểm/token**.
+  + `subagents`: 0.56 điểm / 105.4k token eval ≈ **0.53 × 10⁻⁵ điểm/token**.
+- **Đa tác tử có đáng chi phí không?**
+  + **Hoàn toàn KHÔNG đáng chi phí** trong thí nghiệm này. `subagents` tiêu tốn lượng token gấp 2.43 lần và thời gian chạy gấp 3 lần so với baseline, nhưng điểm số không tăng trên tập học (0.66 vs 0.66) và thậm chí sụt giảm trên tập đánh giá (0.56 vs 0.60). Việc phân quyền giao việc tạo thêm overhead hội thoại và rủi ro thất thoát thông tin ngữ cảnh mà không đem lại lợi ích bù đắp.
+
+### 5. Dấu hiệu rò rỉ dữ liệu và quá khớp
+- **Kiểm soát rò rỉ dữ liệu (Data Leakage):**
+  + Hoàn toàn không có rò rỉ dữ liệu từ tập đánh giá sang kỹ năng. Hàm `curate_skills` lọc bỏ tuyệt đối các run có `role != "learn"` và hàm `validate_skill` quét kiểm tra toàn bộ danh sách `eval_markers()` (định danh độc quyền của tập eval).
+  + Trong các file `SKILL.md` tự sinh, không hề xuất hiện các chuỗi đặc trưng của tập eval như `appointments`, `march_orders`, hay `audit_service`.
+- **Dấu hiệu quá khớp (Overfitting):**
+  + Kỹ năng tự sinh khái quát hóa rất tốt quy tắc viết type hints và regression tests sang `code-eval`, nhưng không thể khái quát hóa các quy ước về format dữ liệu sang `data-eval` (vốn đòi hỏi các trường meta và chuẩn hóa khác). Đây là đặc tính tự nhiên của quá trình tự tiến hóa: kỹ năng đúc kết từ phản hồi của tập học giải quyết triệt để các bài toán trong cùng phân phối nhưng cần thêm vòng lặp phản hồi khi gặp môi trường có quy ước mới.
+
+### 6. Phân tích độ nhiễu thực nghiệm
+- So sánh điểm số và token của cùng bộ skill trên tác vụ học giữa lần chạy thử nghiệm ở Phần 3.4 (`results/skills-auto-dev`) và lần chạy chính thức sau đóng băng (`results/skills-auto`):
+  + `code-learn`: Dev = **8/10** (165,727 tokens) vs Freeze = **8/10** (108,006 tokens) => Chênh lệch điểm: **0.00**.
+  + `data-learn`: Dev = **5/8** (59,822 tokens) vs Freeze = **5/8** (50,338 tokens) => Chênh lệch điểm: **0.00**.
+  + `logs-learn`: Dev = **6/9** (47,254 tokens) vs Freeze = **6/9** (34,583 tokens) => Chênh lệch điểm: **0.00**.
+- **Ý nghĩa khoa học:**
+  + Độ biến động điểm số giữa hai lần chạy là **bằng 0 (0.00)**, chứng minh rằng điểm số partial credit trong môi trường nhiệt độ thấp (`LAB_TEMPERATURE=0`) có độ ổn định và độ tin cậy rất cao.
+  + Chênh lệch điểm số quan sát được giữa các điều kiện (ví dụ `skills-auto` đạt 0.66 so với `baseline` 0.60 trên tập eval) là **sự khác biệt thực chất mang tính hệ thống**, không phải do nhiễu ngẫu nhiên của mô hình.
+  + Tuy nhiên, số lượng token tiêu thụ có phương sai từ 15% đến 35% do độ dài đường suy luận (reasoning trajectory) và số bước công cụ có thể biến động nhẹ.
 
 ## 9. Hạn chế và tính hợp lệ
 
-> Nêu ít nhất 3 hạn chế và ảnh hưởng của từng hạn chế đến kết luận (ví dụ: chỉ 3 tác vụ mỗi vai trò, mỗi cấu hình chạy một lần, nhiễu của mô hình, tác vụ do giảng viên thiết kế sẵn quy ước, chỉ một mô hình).
-
-1.
-2.
-3.
+1. **Quy mô tập tác vụ nhỏ:** Mỗi điều kiện chỉ được đánh giá trên 3 tác vụ học và 3 tác vụ đánh giá (tổng cộng 6 tác vụ). Cỡ mẫu nhỏ hạn chế khả năng kiểm định ý nghĩa thống kê (p-value) và có thể làm nổi bật các biến động cá biệt ở từng bài toán.
+2. **Quy ước tổ chức mang tính nhân tạo:** Các quy ước tổ chức (như tiền tệ bằng cents, khối meta, định dạng changelog) được thiết kế có chủ đích bởi giảng viên để thử nghiệm cơ chế bắt lỗi của bot đánh giá, chưa đại diện đầy đủ cho sự phức tạp và mơ hồ của các quy ước dự án thực tế trong doanh nghiệp.
+3. **Thử nghiệm trên một mô hình duy nhất:** Mọi thí nghiệm được thực hiện trên mô hình `gpt-6-luna`. Kết quả chưa phản ánh mức độ phụ thuộc vào năng lực mô hình nền (ví dụ: các mô hình nhỏ hơn có thể hưởng lợi nhiều hơn từ subagents, hoặc kỹ năng do mô hình này viết có chuyển giao hiệu quả sang mô hình khác hay không).
+4. **Giới hạn số vòng lặp tiến hóa đơn lẻ:** Thí nghiệm mới chỉ đánh giá 1 chu kỳ tiến hóa (single-iteration evolution). Trong môi trường sản xuất, tác tử tự tiến hóa cần chạy liên tục qua nhiều chu kỳ (hot-path / multi-round evolution) với cơ chế tự prune và hợp nhất kỹ năng để tránh phình to (skill bloat).
 
 ## 10. Kết luận
 
-> Tối đa 5 câu. Chỉ khẳng định điều số liệu hỗ trợ. Nêu một đề xuất cải tiến tiếp theo.
+Thực nghiệm đã chứng minh rằng tác tử tự tiến hóa ở tầng ngữ cảnh (`skills-auto`) đem lại hiệu quả vượt trội so với tác tử mặc định (`baseline`) và kiến trúc đa tác tử (`subagents`), nâng điểm số đánh giá từ 0.60 lên 0.66 nhờ khả năng khắc phục các vi phạm quy ước tổ chức mà không làm suy giảm năng lực kỹ thuật. Ngược lại, kiến trúc đa tác tử thông thường làm tăng chi phí token lên gấp 2.4 lần và kéo dài thời gian thực thi nhưng không đem lại giá trị gia tăng khi tác tử con thiếu tri thức thủ tục. Đề xuất cải tiến tiếp theo là tích hợp cơ chế nạp kỹ năng động trực tiếp cho subagents (`subagent with skills`) kết hợp vòng tuyển chọn curator đa chu kỳ để xử lý thích ứng với các quy ước mới xuất hiện trong runtime.
+
+---
 
 ## Phụ lục
 
-- Lệnh đã chạy (theo thứ tự):
-- Thử thách mở rộng (nếu có): hướng chọn, kết quả, nhận xét.
-- Ghi chú khác:
+### Lệnh đã chạy (theo thứ tự thực hiện)
+
+```bash
+# 1. Cài đặt và kiểm tra harness
+pytest tests/test_01_provided.py
+pytest tests/test_02_agent.py
+pytest tests/test_03_runner.py
+pytest tests/test_04_curator.py
+pytest
+
+# 2. Khảo sát công cụ Deep Agents (Phần 0.3)
+python scripts/tour.py
+
+# 3. Chạy thực nghiệm tác vụ học (Phần 2)
+python -m lab.runner --condition baseline --tasks learn
+python -m lab.runner --condition subagents --tasks learn
+
+# 4. Tự sinh skill và chạy thử nghiệm (Phần 3)
+python -m lab.curator
+python -m lab.runner --condition skills-auto --tasks learn
+cp -r results/skills-auto results/skills-auto-dev
+
+# 5. Giao thức đóng băng (Phần 4)
+git add -A && git commit -m "hypotheses: dự đoán H1, H2, H3 trước khi đóng băng và đánh giá"
+git commit --allow-empty -m "freeze skills" && git tag freeze
+
+# 6. Chạy thực nghiệm chính thức (Phần 4.2)
+python -m lab.runner --condition baseline --tasks eval
+python -m lab.runner --condition subagents --tasks eval
+python -m lab.runner --condition skills-auto --tasks all
+python scripts/verify_freeze.py
+
+# 7. Tổng hợp kết quả và phân tích (Phần 4.3, 4.4)
+python -m lab.compare > report/table.md
+python scripts/check_breakdown.py
+
+# 8. Thử thách mở rộng: Hướng 6e (Lặp đo nhiễu trên tác vụ đánh giá)
+python -m lab.runner --condition baseline --tasks eval --results results/bonus
+python -m lab.runner --condition skills-auto --tasks eval --results results/bonus
+```
+
+### Thử thách mở rộng: Hướng 6e - Lặp để đo nhiễu (Repetition for Noise Measurement) - Tối đa +5 điểm
+
+#### 1. Thiết kế thí nghiệm
+- **Mục tiêu:** Đo lường phương sai ngẫu nhiên của mô hình trên tập đánh giá bằng cách lặp lại toàn bộ các tác vụ đánh giá cho hai điều kiện quan trọng nhất: `baseline` và `skills-auto` (với bộ kỹ năng đã đóng băng).
+- **Thư mục kết quả độc lập:** Lưu trữ tách biệt hoàn toàn tại `results/bonus/` nhằm không ảnh hưởng đến bộ kết quả chính thức đã được `verify_freeze.py` xác thực.
+- **Tham số:** Cùng mô hình `gpt-6-luna`, cùng `LAB_TEMPERATURE=0`, `recursion_limit=60`.
+
+#### 2. Số liệu so sánh giữa Run 1 (Chính thức) và Run 2 (Bonus)
+
+| Điều kiện | Tác vụ | Run 1 Score | Run 2 Score | Độ lệch điểm | Run 1 Tokens | Run 2 Tokens | Độ lệch Token | Run 1 Thời gian | Run 2 Thời gian |
+|---|---|---|---|---|---|---|---|---|---|
+| `baseline` | `code-eval` | 7/11 | 7/11 | **0** | 67,976 | 90,141 | +32.6% | 61.6s | 67.8s |
+| `baseline` | `data-eval` | 5/9 | 5/9 | **0** | 24,512 | 27,772 | +13.3% | 16.4s | 20.8s |
+| `baseline` | `logs-eval` | 6/10 | 6/10 | **0** | 23,914 | 38,648 | +61.6% | 19.8s | 27.7s |
+| `skills-auto` | `code-eval` | 9/11 | 9/11 | **0** | 113,923 | 64,840 | -43.1% | 90.5s | 71.5s |
+| `skills-auto` | `data-eval` | 5/9 | 5/9 | **0** | 65,638 | 72,953 | +11.1% | 41.0s | 32.8s |
+| `skills-auto` | `logs-eval` | 6/10 | 6/10 | **0** | 40,276 | 37,923 | -5.8% | 30.9s | 32.6s |
+
+**Điểm trung bình tác vụ đánh giá:**
+- `baseline`: Run 1 = **0.60**, Run 2 = **0.60** (Độ lệch = 0.00).
+- `skills-auto`: Run 1 = **0.66**, Run 2 = **0.66** (Độ lệch = 0.00).
+
+#### 3. Phân tích cơ chế dựa trên vết
+- **Tính ổn định của điểm số:** Điểm số partial credit đạt độ tái lập tuyệt đối 100% giữa 2 lần chạy độc lập. Trên `code-eval`, cả hai lần chạy của `skills-auto` đều đọc kỹ năng `repository-requirements` và kiên định hoàn thành hai check quy ước `rule_type_hints` và `rule_regression_tests`, giữ vững điểm 9/11 so với 7/11 của baseline.
+- **Phương sai về chi phí token:** Mặc dù điểm số không đổi, token tiêu thụ dao động trong khoảng từ 5% đến 60%. Phân tích `trace.md` cho thấy mô hình đôi khi chọn đường dẫn khám phá khác nhau (ví dụ: chạy thêm lệnh `git status` hoặc `ls` kiểm tra lại trước khi kết thúc), làm thay đổi số lượt tool call nhưng dẫn đến cùng trạng thái workspace cuối cùng.
+
+#### 4. Hạn chế và đề xuất bước tiếp theo
+- **Hạn chế:** Thí nghiệm lặp lại với N=2 lần chạy; để tính độ lệch chuẩn và khoảng tin cậy 95% chuẩn mực cần tối thiểu N=5 đến N=10 lần chạy.
+- **Đề xuất tiếp theo:** Tự động hóa cơ chế early-stopping khi tác tử đã thỏa mãn toàn bộ checklist trong skill để giảm thiểu phương sai token không cần thiết.

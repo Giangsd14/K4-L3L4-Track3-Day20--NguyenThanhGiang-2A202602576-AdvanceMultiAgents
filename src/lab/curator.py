@@ -4,10 +4,12 @@ Pseudo-code: guides/pseudocode/04_curator.md
 Kiểm tra:    pytest tests/test_04_curator.py
 Chạy thật:   python -m lab.curator
 """
+import json
 import re
 from pathlib import Path
 
-from .tasks import eval_markers   # có sẵn: định danh của tác vụ đánh giá, tính lúc chạy
+from .model import make_model
+from .tasks import ROOT, eval_markers   # có sẵn: định danh của tác vụ đánh giá, tính lúc chạy
 
 # ---- CÓ SẴN, KHÔNG SỬA: kiểm tra và tách khối skill (phần dễ sai và liên quan bảo mật) ----------------
 SAFE_NAME = re.compile(r"^[a-z0-9]+(-[a-z0-9]+)*$")
@@ -54,6 +56,27 @@ def parse_skill_blocks(reply: str) -> list[tuple[str, str]]:
     return [(name, text.strip()) for name, text in pattern.findall(str(reply))]
 # --------------------------------------------------------------------------------------------------
 
+CURATOR_PROMPT_TEMPLATE = """You write SKILLs for a software engineering and data analysis agent working in a sandbox.
+Below are the failed checks (check names and evaluation reviewer notes) and execution traces from learning tasks.
+Analyze the recurring process and procedural mistakes (not specific answers) and write at most {max_skills} concise skills
+that help the agent avoid these mistakes on NEW tasks of the same family.
+
+Rules:
+- Skills must be general: do NOT mention task IDs, specific filenames unique to a task, or hardcoded answers/numbers.
+- Each skill must have YAML frontmatter with `name` (lowercase letters, digits, and hyphens) and `description` (one sentence: WHEN TO USE THIS SKILL).
+- The body should be at most 40 lines of imperative guidance (a checklist works best).
+- Format each skill exactly as follows:
+=== SKILL: <name> ===
+---
+name: <name>
+description: <when to use>
+---
+<body content>
+=== END ===
+
+{run_summaries}
+"""
+
 
 def curate_skills(results_dir="results", source_condition="baseline", out_dir=None, model=None, max_skills: int = 3) -> list[Path]:
     """Đọc các lần chạy của TÁC VỤ HỌC (role == "learn") trong `source_condition`, nhờ LLM viết skill, ghi file.
@@ -68,7 +91,75 @@ def curate_skills(results_dir="results", source_condition="baseline", out_dir=No
     model mặc định: make_model() (lab.model).
     Trả về: danh sách đường dẫn SKILL.md đã ghi.
     """
-    raise NotImplementedError("TODO: cài đặt curate_skills (xem guides/pseudocode/04_curator.md)")
+    out_dir = Path(out_dir) if out_dir is not None else (ROOT / "skills" / "auto")
+
+    results_path = Path(results_dir) / source_condition
+    if not results_path.exists():
+        print(f"No results found in {results_path}")
+        return []
+
+    runs = []
+    for rf in sorted(results_path.glob("*/run.json")):
+        try:
+            r = json.loads(rf.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+
+        if r.get("role") != "learn":
+            continue
+
+        trace_file = rf.parent / "trace.md"
+        trace = trace_file.read_text(encoding="utf-8") if trace_file.exists() else ""
+
+        failed = []
+        for c in r.get("checks", []):
+            if not c.get("passed"):
+                failed.append((c.get("name", ""), c.get("detail", "")))
+
+        if failed:
+            runs.append({
+                "task": r.get("task", rf.parent.name),
+                "failed": failed,
+                "trace": trace,
+            })
+
+    if not runs:
+        print("No failed checks found in learning tasks.")
+        return []
+
+    run_summaries = []
+    for item in runs:
+        lines = [f"=== Task: {item['task']} ===", "Failed checks:"]
+        for fname, fdetail in item["failed"]:
+            lines.append(f"- {fname}: {fdetail}")
+        if item["trace"]:
+            lines.append("Execution trace (last 6000 characters):")
+            lines.append(item["trace"][-6000:])
+        run_summaries.append("\n".join(lines))
+
+    prompt = CURATOR_PROMPT_TEMPLATE.format(
+        max_skills=max_skills,
+        run_summaries="\n\n".join(run_summaries),
+    )
+
+    if model is None:
+        model = make_model()
+
+    reply = model.invoke(prompt).content
+
+    written = []
+    for name, text in parse_skill_blocks(reply):
+        if len(written) >= max_skills:
+            break
+        problems = validate_skill(text, expected_name=name)
+        if problems:
+            continue
+        skill_file = out_dir / name / "SKILL.md"
+        skill_file.parent.mkdir(parents=True, exist_ok=True)
+        skill_file.write_text(text, encoding="utf-8")
+        written.append(skill_file)
+
+    return written
 
 
 if __name__ == "__main__":

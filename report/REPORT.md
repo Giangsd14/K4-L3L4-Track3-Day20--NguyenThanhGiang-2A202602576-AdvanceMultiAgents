@@ -15,11 +15,9 @@
 
 ## 2. Giả thuyết (commit TRƯỚC tag `freeze`, Phần 4.0)
 
-> Dự đoán điều kiện nào đạt điểm cao nhất trên **tác vụ đánh giá** và vì sao. Nêu căn cứ từ phân loại lỗi (mục 4) và từ tài liệu tham khảo. Điền cả ba dòng; `verify_freeze.py` kiểm tra điều này.
-
-- H1 (subagents so với baseline):
-- H2 (skills-auto so với baseline):
-- H3 (tác vụ học so với tác vụ đánh giá):
+- H1 (subagents so với baseline): Điều kiện `subagents` sẽ tiêu thụ lượng token cao hơn gấp 2 đến 3 lần và thời gian chạy dài hơn so với `baseline`, nhưng điểm số trên tác vụ đánh giá sẽ không vượt trội đáng kể (dao động trong khoảng tương đương hoặc chỉ chênh lệch nhẹ). Căn cứ: Kết quả phân loại lỗi ở Mục 4 cho thấy 100% lỗi thất bại thuộc nhóm E (quy ước ngầm của tổ chức). Việc phân quyền đa tác tử (explorer, implementer, reviewer) chỉ tối ưu hóa việc phân tách ngữ cảnh và kiểm thử kỹ thuật (vốn dĩ baseline đã đạt 18/18 check kỹ thuật), không thể bù đắp được các tri thức thủ tục bị thiếu nếu không có cơ chế nạp kỹ năng; phù hợp với các công bố của Anthropic về chi phí và giới hạn của đa tác tử trong tác vụ phần mềm.
+- H2 (skills-auto so với baseline): Điều kiện `skills-auto` sẽ đạt điểm số cao hơn rõ rệt so với `baseline` trên các check quy ước cũ được tái sử dụng, nhưng mức cải thiện sẽ bị suy giảm trên các quy ước mới của tác vụ đánh giá do hiện tượng quá khớp (overfitting). Căn cứ: Theo các nghiên cứu chuẩn đối sánh SkillsBench và SkillEvolBench, kỹ năng tự sinh từ phản hồi của tập học giúp củng cố checklist thủ tục rất tốt trên miền quen thuộc, nhưng tri thức tự sinh ít có khả năng tự suy luận ra các quy ước tổ chức hoàn toàn mới mà bot chấm điểm yêu cầu riêng ở tập đánh giá.
+- H3 (tác vụ học so với tác vụ đánh giá): Điểm số trung bình trên tác vụ đánh giá sẽ thấp hơn tác vụ học trên toàn bộ các điều kiện (sụt giảm khoảng 10-25%), đặc biệt ở nhóm check quy ước (`rule_`). Căn cứ: Thiết kế thực nghiệm của bài Lab quy định mỗi tác vụ đánh giá đều có dữ liệu mới và bổ sung thêm một quy ước tổ chức mới. Vì các quy ước mới này chưa từng xuất hiện trong phản hồi hay đề bài trước đó, tác tử sẽ gặp hiện tượng dịch chuyển phân phối kiểm tra (distribution shift) khiến tỷ lệ đạt check ở tập đánh giá sụt giảm tự nhiên.
 
 ## 3. Làm quen Deep Agents (Phần 0.3)
 
@@ -85,11 +83,13 @@
 
 ## 6. Self-evolving: skill do curator sinh (Phần 3)
 
-- Số lần chạy curator, số skill bị xóa và lý do:
+- **Số lần chạy curator, số skill bị xóa và lý do:** Chạy curator **1 lần duy nhất**. Số skill bị xóa: **0 skill**. Cả 3 skill do mô hình sinh ra đều vượt qua bộ kiểm duyệt `validate_skill` (đúng format frontmatter, không nhắc đến tài liệu đánh giá, thân dưới 40 dòng) và đạt tiêu chuẩn chất lượng cao về tính thủ tục tổng quát.
 
 | Skill | Tổng quát hay riêng cho tác vụ học? | Đúng hay sai (nêu chỗ sai nếu có) | Độ dài, `description` và `skills_read` ở Phần 3.4 |
 |---|---|---|---|
-| | | | |
+| `repository-requirements` | **Hoàn toàn tổng quát:** Áp dụng cho mọi repository Python có yêu cầu về chất lượng mã (type hints, regression testing, changelog). Không chứa bất kỳ ID bài toán, tên tệp riêng (`inventory`), hay hàm cụ thể nào. | **Đúng hoàn toàn:** Hướng dẫn đầy đủ và chuẩn xác các bước thêm type annotations, tạo file test hồi quy cho từng bug, ghi changelog và kiểm tra lại toàn bộ quy tắc. | Dài **11 dòng** (thân 7 dòng checklist). `description`: *"Use when changing code in an existing repository with explicit quality, testing, or documentation requirements."* Đã được đọc ở `code-learn` (`skills_read = 1`) và giúp tác tử đạt check `rule_type_hints`. |
+| `tabular-data-deliverables` | **Hoàn toàn tổng quát:** Áp dụng cho các bài toán xử lý dữ liệu bảng (CSV, tabular) chuyển thành tệp kết quả có cấu trúc. Không chứa tên file `sales.csv` hay `answer.json`. | **Đúng hoàn toàn:** Hướng dẫn phân tách số dòng vào vs số dòng sau deduplicate, xử lý múi giờ khi parse ngày tháng, chuẩn hóa danh mục, và tính toán tiền tệ theo số học thập phân / integer cents. | Dài **11 dòng** (thân 7 dòng checklist). `description`: *"Use when transforming tabular data into computed results and one or more structured output files."* Đã được đọc ở `data-learn` (`skills_read = 3`). |
+| `structured-output-contracts` | **Hoàn toàn tổng quát:** Áp dụng cho trích xuất log và tạo đầu ra máy đọc được (JSON) có ràng buộc schema/versioning, thứ tự sắp xếp và chuẩn hóa định danh. Không chứa tên file `errors.json` hay service cụ thể. | **Đúng hoàn toàn:** Chỉ dẫn chuẩn hóa identifier, sắp xếp theo key/tie-breaker, bổ sung metadata version và re-parse kiểm chứng trước khi kết thúc. | Dài **9 dòng** (thân 5 dòng checklist). `description`: *"Use when producing machine-readable output from logs or other structured records with naming, ordering, or schema constraints."* Đã được đọc ở `logs-learn` (`skills_read = 2`). |
 
 ## 7. Kết quả so sánh (Phần 4.3, 4.4)
 
